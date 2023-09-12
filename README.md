@@ -34,9 +34,8 @@ This will download the required dependencies to compile the Java code. This woul
   - change directory to the ./lambdaFunctions/python path and run: ``` zip python.zip lambda_function.py ```
 
 - Similarly zip the Node.Js and Python Lambda functions Layers
-  - change directory to the ./layers/node path and run: ``` zip nodeLayer.zip layer.js ```
-  - In case of python, the zip file needs to contain the directory, hence change directory to the ./layers/ path and 
-    - run: ``` zip -r pythonLayer.zip python ```
+  - Change directory to the ./layers path and run: ``` zip -r nodeLayer.zip nodejs ```
+  - Change directory to the ./layers path and run: ``` zip -r pythonLayer.zip python ```
 
 ### Copy to the S3 bucket
 - Upload these six files including the one .jar and five .zip files to the s3 bucket:
