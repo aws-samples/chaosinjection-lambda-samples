@@ -1,5 +1,5 @@
 ## Chaos Injection Lambda
-This code repo blog demonstrates an approach in injecting chaos in Lambda functions without making any change to the Lambda function code. This blog uses the AWS Fault Injection Simulator (FIS) service to create experiments that inject disruptions for Lambda based serverless applications. The sample code in this blog introduces random disruptions to existing Lambda functions - like an increase in response times (latency) or random failures. 
+These code samples demonstrates an approach in injecting chaos in Lambda functions without making any change to the Lambda function code. This blog uses the AWS Fault Injection Simulator (FIS) service to create experiments that inject disruptions for Lambda based serverless applications. The sample code in this blog introduces random disruptions to existing Lambda functions - like an increase in response times (latency) or random failures. 
 
 This sample creates an FIS experiment that uses Lambda layers to inject disruptions. The Lambda layer contains the fault injection tooling. It is invoked prior to invocation of the Lambda function and injects random latencies or error. Injecting random latency simulates real world unpredictable conditions. The FIS experiment configures the Lambda function to use the fault injection layer using an AWS System Manager Document using an aws:ssm:start-automation-execution action. Once the experiment is complete, another AWS System Manager document rolls back the layer’s attachment to the Lambda function. This design allows for the chaos experiment to be used for existing serverless applications, without changing the existing Lambda function. 
 
@@ -51,14 +51,13 @@ This will download the required dependencies to compile the Java code. This woul
 ### Run CloudFormation
 - Run the CloudFormation file 
   - Change the parameters in the runCfn.sh file 
-    - Change the bucket name 
+    - Change the your-bucket-name ParameterValue for the ParameterKey ```LambdaS3Bucket``` in the below command.
     - Change the stack name if needed 
     - run the command ``` ./runCfn.sh ```  
-    - this runs the below Cloudformation stack creation command: 
+    - this starts the Cloudformation stack creation process: 
 
 ```
-aws cloudformation create-stack --stack-name myChaosStack --template-body file://cfnChaos.yml --parameters ParameterKey=JavaFileName,ParameterValue=javaFunction.jar ParameterKey=JavaLayerFileName,ParameterValue=javaLayer.zip ParameterKey=PythonFileName,ParameterValue=python.zip ParameterKey=PythonLayerFileName,ParameterValue=pythonLayer.zip ParameterKey=NodeFileName,ParameterValue=node.zip ParameterKey=NodeLayerFileName,ParameterValue=nodeLayer.zip ParameterKey=LambdaS3Bucket,ParameterValue=mychaosbucket ParameterKey=UpdateLambdaWithSSMAutomationRoleParam,ParameterValue=UpdateLambdaWithSSMAutomationRoleChaos ParameterKey=DeploySampleLambda,ParameterValue=Yes ParameterKey=FISRoleName,ParameterValue=FISRoleChaos ParameterKey=LambdaExecutionRoleName,ParameterValue=SampleLambdaExecutionRoleChaos ParameterKey=ChaosDocumentName,ParameterValue=InjectLambdaChaos --capabilities CAPABILITY_NAMED_IAM
-
+aws cloudformation create-stack --stack-name myChaosStack --template-body file://cfnChaos.yml --parameters ParameterKey=LambdaS3Bucket,ParameterValue=your-bucket-name ParameterKey=JavaFileName,ParameterValue=javaFunction.jar ParameterKey=JavaLayerFileName,ParameterValue=javaLayer.zip ParameterKey=PythonFileName,ParameterValue=python.zip ParameterKey=PythonLayerFileName,ParameterValue=pythonLayer.zip ParameterKey=NodeFileName,ParameterValue=node.zip ParameterKey=NodeLayerFileName,ParameterValue=nodeLayer.zip  ParameterKey=UpdateLambdaWithSSMAutomationRoleParam,ParameterValue=UpdateLambdaWithSSMAutomationRoleChaos ParameterKey=FISRoleName,ParameterValue=FISRoleChaos ParameterKey=LambdaExecutionRoleName,ParameterValue=SampleLambdaExecutionRoleChaos ParameterKey=ChaosDocumentName,ParameterValue=InjectLambdaChaos --capabilities CAPABILITY_NAMED_IAM
 ```
 Wait for CloudFormation to provision all resources. 
 
@@ -75,20 +74,20 @@ By default, the experiment is configured to inject chaos in Java sample Lambda f
 
 ### Run your application testing experiment 
 
-At this stage, all elements are in place to inject chaos into your Lambda function. Execute Lambda functions and observe application’s behaviour. Invoke the lambda functions using the below command: 
+At this stage, all elements are in place to inject chaos into your Lambda function. Execute the Lambda function for which the FIS experiment was run in the previous step. Invoke the respective lambda function using the below command: 
 
   - To run the Node.js Lambda function run:  
-```
-aws lambda invoke --function-name NodeChaosInjectionExampleFn out --log-type Tail --query 'LogResult' --output text | base64 -d
-```
+  ```
+  aws lambda invoke --function-name NodeChaosInjectionExampleFn out --log-type Tail --query 'LogResult' --output text | base64 -d
+  ```
   - To run the Python Lambda function run:  
-```
-aws lambda invoke --function-name PythonChaosInjectionExampleFn out --log-type Tail --query 'LogResult' --output text | base64 -d
-```
+  ```
+  aws lambda invoke --function-name PythonChaosInjectionExampleFn out --log-type Tail --query 'LogResult' --output text | base64 -d
+  ```
   - To run the Java Lambda function run:  
-```
-aws lambda invoke --function-name JavaChaosInjectionExampleFn out --log-type Tail --query 'LogResult' --output text | base64 -d
-```
+  ```
+  aws lambda invoke --function-name JavaChaosInjectionExampleFn out --log-type Tail --query 'LogResult' --output text | base64 -d
+  ```
 
 ### To roll back the experiment
 - Navigate to the Systems Manager Console, go to documents menu option and locate the document called ChaosDocument-Rollback. 

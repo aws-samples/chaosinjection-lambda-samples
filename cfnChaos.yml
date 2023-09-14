@@ -64,7 +64,7 @@ Parameters:
     MinLength: 1
     MaxLength: 1024
     Type: String  
-    Default: 'chaosLambdaLayer-1.0.jar'  
+    Default: 'chaosLambdaLayer.jar'  
 Metadata: 
   AWS::CloudFormation::Interface: 
     ParameterGroups: 
@@ -246,11 +246,6 @@ Resources:
       Value: 
        Ref: JavaLayerJarName
       Description: SSM Parameter java layer jar name
-  FISLogGroup: 
-    Type: AWS::Logs::LogGroup
-    Properties: 
-      RetentionInDays: 1
-      LogGroupName: 'ChaosFISLogGroup'
   ChaosDocument:
     Type: AWS::SSM::Document
     Properties:
@@ -389,10 +384,6 @@ Resources:
     DeletionPolicy: Delete
     Properties: 
       Description: 'Inject chaos in Lambda with pre-configured chaos injection layers'
-      LogConfiguration: 
-         CloudWatchLogsConfiguration: 
-             {"LogGroupArn": !GetAtt FISLogGroup.Arn}
-         LogSchemaVersion: 1  
       Actions: 
         InjectChaos:
           ActionId: 'aws:ssm:start-automation-execution'
@@ -450,16 +441,7 @@ Resources:
                   - 'ssm:GetAutomationExecution'                    
                   - 'ssm:StopAutomationExecution'
                 Resource: 'arn:aws:ssm:*:*:automation-execution/*'  
-        - PolicyName: 'CloudWatch'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement: 
-              - Effect: Allow     
-                Action: 'logs:*'
-                Resource: !GetAtt FISLogGroup.Arn     
-              - Effect: Allow     
-                Action: 'logs:CreateLogDelivery'
-                Resource: '*'                  
+                          
 Outputs:
   JavaChaosInjectionParam:
     Description: The parameter string to update in FIS experiment template for injecting chaos in Java Lambda function 
