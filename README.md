@@ -90,12 +90,11 @@ At this stage, all elements are in place to inject chaos into your Lambda functi
   ```
 
 ### To roll back the experiment
-- Navigate to the Systems Manager Console, go to documents menu option and locate the document called ChaosDocument-Rollback. 
+- Navigate to the Systems Manager Console, go to documents menu option and locate the document called ``` InjectLambdaChaos-Rollback. ```
 
 - Click on the document, and click on Execute Automation. Provide the value for the parameter FunctionName for the lambda function from which to remove the chaos injection layer. Click on Execute. This rolls back the Lambda function to the state before chaos injection. 
 
-### To roll back the experiment
- Cleaning up
+### Cleanup
 To avoid incurring future charges, delete all resources.
 •	Clean up resources created by the CloudFormation template by running the below AWS CLI command. Update the stack name to the name you provided when creating the stack. 
 ```
