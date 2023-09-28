@@ -1,97 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
 Description: This template creates a FIS experiment to inject chaos in Lambda function usign lambda layers.
-Parameters: 
-  UpdateLambdaWithSSMAutomationRoleParam: 
-    Type: String 
-    Default: 'UpdateLambdaWithSSMAutomationRoleParam'
-    Description: 'Update lambda via SSM Automatio role'
-  LambdaExecutionRoleName: 
-    Type: String 
-    Default: 'SampleLambdaExecutionRole'
-    Description: 'Sample Lambda Execution Role'
-  FISRoleName: 
-    Type: String 
-    Default: 'FISRole'
-    Description: 'Sample FIS Execution Role'  
-  ChaosDocumentName: 
-    Type: String 
-    Default: 'InjectLambdaChaos'
-    Description: 'Chaos document name'
-  LambdaS3Bucket: 
-    Description: 'S3 bucket name in this region where lambda and layers code is kept'
-    AllowedPattern: '^[0-9A-Za-z\\.\\-_]*(?<!\\.)$'
-    MinLength: 3
-    MaxLength: 63
-    Type: String
-  JavaFileName: 
-    Description: 'File name for lambda code - Java'
-    AllowedPattern: '^[0-9A-Za-z\\.\\-_]*(?<!\\.)$'
-    MinLength: 1
-    MaxLength: 1024
-    Type: String
-  PythonFileName: 
-    Description: 'File name for lambda code - Python'
-    AllowedPattern: '^[0-9A-Za-z\\.\\-_]*(?<!\\.)$'
-    MinLength: 1
-    MaxLength: 1024
-    Type: String
-  NodeFileName: 
-    Description: 'File name for lambda code - Node'
-    AllowedPattern: '^[0-9A-Za-z\\.\\-_]*(?<!\\.)$'
-    MinLength: 1
-    MaxLength: 1024
-    Type: String   
-  JavaLayerFileName: 
-    Description: 'File name for lambda Layer - Java'
-    AllowedPattern: '^[0-9A-Za-z\\.\\-_]*(?<!\\.)$'
-    MinLength: 1
-    MaxLength: 1024
-    Type: String
-  PythonLayerFileName: 
-    Description: 'File name for lambda layer - Python'
-    AllowedPattern: '^[0-9A-Za-z\\.\\-_]*(?<!\\.)$'
-    MinLength: 1
-    MaxLength: 1024
-    Type: String
-  NodeLayerFileName: 
-    Description: 'File name for lambda layer - Node'
-    AllowedPattern: '^[0-9A-Za-z\\.\\-_]*(?<!\\.)$'
-    MinLength: 1
-    MaxLength: 1024
-    Type: String     
-  JavaLayerJarName: 
-    Description: 'File name for lambda layer - jar name'
-    MinLength: 1
-    MaxLength: 1024
-    Type: String  
-    Default: 'chaosLambdaLayer.jar'  
-Metadata: 
-  AWS::CloudFormation::Interface: 
-    ParameterGroups: 
-      - 
-        Label: 
-          default: "IAM Roles"
-        Parameters: 
-          - LambdaExecutionRoleName
-          - FISRoleName 
-          - UpdateLambdaWithSSMAutomationRoleParam
-      - 
-        Label: 
-          default: "Sample Lambda functions"
-        Parameters: 
-          - LambdaS3Bucket
-          - JavaFileName
-          - PythonFileName
-          - NodeFileName
-      - 
-        Label: 
-          default: "Chaos - Lambda Layers, Automation document"
-        Parameters: 
-          - JavaLayerFileName
-          - PythonLayerFileName
-          - NodeLayerFileName
-          - JavaLayerJarName
-          - ChaosDocumentName    
 Resources:
   UpdateLambdaWithSSMAutomationRole:
     Type: 'AWS::IAM::Role'
@@ -124,7 +33,6 @@ Resources:
                 Action:
                   - 'lambda:GetLayerVersion'
                 Resource: 
-                  - !Ref JavaLambdaLayer
                   - !Ref NodeLambdaLayer
                   - !Ref PythonLambdaLayer
         - PolicyName: 'CreateSSMParam'
@@ -134,32 +42,6 @@ Resources:
               - Effect: Allow
                 Action:
                   - 'ssm:PutParameter'
-                  - 'ssm:LabelParameterVersion'
-                  - 'ssm:DescribeDocumentParameters'
-                  - 'ssm:GetParameters'
-                  - 'ssm:GetParameter'
-                  - 'ssm:DescribeParameters'
-                Resource: !Sub 'arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/ChaosInjection/*'
-  LambdaRole:
-    Type: 'AWS::IAM::Role'
-    DeletionPolicy: Delete
-    Properties:
-      RoleName: 
-        Ref: LambdaExecutionRoleName
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement: 
-          - Effect: Allow
-            Principal:
-              Service: 'lambda.amazonaws.com'
-            Action: 'sts:AssumeRole'
-      Policies:
-        - PolicyName: 'SSMParamAll'
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
                   - 'ssm:LabelParameterVersion'
                   - 'ssm:DescribeDocumentParameters'
                   - 'ssm:GetParameters'
@@ -202,50 +84,8 @@ Resources:
       Role: !GetAtt LambdaRole.Arn
       Runtime: 'python3.8'  
       FunctionName: 'PythonChaosInjectionExampleFn' 
-  JavaLambdaLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      CompatibleRuntimes:
-        - java11
-      Content:
-        S3Bucket: 
-          Ref: LambdaS3Bucket
-        S3Key: 
-          Ref: JavaLayerFileName
-      Description: 'ChaosInjectionLayer - Java'
-      LayerName: ChaosInjectionLayerJava
-  NodeLambdaLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      CompatibleRuntimes:
-        - nodejs18.x
-      Content:
-        S3Bucket: 
-          Ref: LambdaS3Bucket
-        S3Key: 
-          Ref: NodeLayerFileName
-      Description: 'ChaosInjectionLayer - Node'
-      LayerName: ChaosInjectionLayerNode 
-  PythonLambdaLayer:
-    Type: AWS::Lambda::LayerVersion
-    Properties:
-      CompatibleRuntimes:
-        - python3.8
-      Content:
-        S3Bucket: 
-          Ref: LambdaS3Bucket
-        S3Key: 
-          Ref: PythonLayerFileName
-      Description: 'ChaosInjectionLayer - Python'
-      LayerName: ChaosInjectionLayerPython         
-  JavaLayerJarFileParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: /ChaosInjection/JavaLayerJarFileNameParam
-      Type: String
-      Value: 
-       Ref: JavaLayerJarName
-      Description: SSM Parameter java layer jar name
+          
+  
   ChaosDocument:
     Type: AWS::SSM::Document
     Properties:
