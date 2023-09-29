@@ -1,0 +1,232 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: This template creates a FIS experiment to inject chaos in Lambda function
+  usign lambda layers.
+Globals:
+  Function:
+    Timeout: 10
+    Architectures:
+    - x86_64
+Parameters:
+  ChaosLayerARN:
+    Description: 'ARN for the chaos layer. You can obtain the latest ARN from the
+      following source: https://github.com/aws-cli-tools/chaos-lambda-extension/blob/main/LAYERS.md'
+    MinLength: '1'
+    MaxLength: '1024'
+    Type: String
+    Default: arn:aws:lambda:us-east-1:871265522301:layer:chaos-lambda-extension-x86_64-unknown-linux-gnu-release:12
+  RunExperimentOnLambda:
+    Description: The name of the Lambda function on which to run experiments. If left
+      empty, the default will be a Python Lambda function created as part of this
+      template.
+    Type: String
+    Default: ''
+Conditions:
+  IsEmptyRunExperimentOnLambda:
+    Fn::Equals:
+    - Ref: RunExperimentOnLambda
+    - ''
+Resources:
+  HelloWorldPython:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: HelloWorldPython
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.11
+    Metadata:
+      SamResourceId: HelloWorldPython
+  HelloWorldNode:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: HelloWorldNode
+      Handler: index.handler
+      Runtime: nodejs18.x
+    Metadata:
+      SamResourceId: HelloWorldNode
+  ChaosDocument:
+    Type: AWS::SSM::Document
+    DeletionPolicy: Delete
+    Properties:
+      DocumentType: Automation
+      DocumentFormat: YAML
+      Content:
+        description: Add Lambda Layer
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::GetAtt:
+          - UpdateLambdaWithSSMAutomationRole
+          - Arn
+        parameters:
+          FunctionName:
+            type: String
+            description: FunctionName
+            default:
+              Fn::If:
+              - IsEmptyRunExperimentOnLambda
+              - Ref: HelloWorldPython
+              - Ref: RunExperimentOnLambda
+          LayerArn:
+            type: String
+            description: Chaos layer ARN
+            default:
+              Ref: ChaosLayerARN
+        mainSteps:
+        - name: Step1
+          action: aws:executeScript
+          inputs:
+            Runtime: python3.8
+            Handler: handler
+            InputPayload:
+              FunctionName: '{{FunctionName}}'
+              LayerArn: '{{ LayerArn }}'
+            Script: "import boto3\n\nlambda_client = boto3.client(\"lambda\")\n\n\n\
+              def handler(event: dict, context):\n    function_name = event[\"FunctionName\"\
+              ]\n    layer_arn = event[\"LayerArn\"]\n    lambda_config_existing =\
+              \ lambda_client.get_function_configuration(\n        FunctionName=function_name\n\
+              \    )\n\n    # Add a new env variable.\n    env = lambda_config_existing.get(\"\
+              Environment\", {})\n    variables: dict = env.get(\"Variables\", {})\n\
+              \    variables[\"CHAOS_EXTENSION__LAMBDA__ENABLE_LATENCY\"] = \"true\"\
+              \n    variables[\"AWS_LAMBDA_EXEC_WRAPPER\"] = \"/opt/bootstrap\"\n\n\
+              \    env[\"Variables\"] = variables\n    lambda_config_details = lambda_client.update_function_configuration(\n\
+              \        FunctionName=function_name,\n        Layers=[layer_arn],\n\
+              \        Environment=env,\n    )"
+  UpdateLambdaWithSSMAutomationRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: ssm.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: UpdateLambda
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - lambda:UpdateFunctionConfiguration
+            - lambda:GetFunctionConfiguration
+            - lambda:GetLayerVersion
+            Resource: '*'
+  RollbackChaosDocument:
+    Type: AWS::SSM::Document
+    DeletionPolicy: Delete
+    Properties:
+      DocumentType: Automation
+      DocumentFormat: YAML
+      Content:
+        description: Add Lambda Layer
+        schemaVersion: '0.3'
+        assumeRole:
+          Fn::GetAtt:
+          - UpdateLambdaWithSSMAutomationRole
+          - Arn
+        parameters:
+          FunctionName:
+            type: String
+            description: FunctionName
+            default:
+              Fn::If:
+              - IsEmptyRunExperimentOnLambda
+              - Ref: HelloWorldPython
+              - Ref: RunExperimentOnLambda
+          LayerArn:
+            type: String
+            description: Chaos layer ARN
+            default:
+              Ref: ChaosLayerARN
+        mainSteps:
+        - name: Step1
+          action: aws:executeScript
+          inputs:
+            Runtime: python3.8
+            Handler: handler
+            InputPayload:
+              FunctionName: '{{FunctionName}}'
+              LayerArn: '{{LayerArn}}'
+            Script: "import boto3\n\nlambda_client = boto3.client(\"lambda\")\n\n\
+              def handler(event: dict, context):\n    function_name = event[\"FunctionName\"\
+              ]\n    layer_arn = event[\"LayerArn\"]\n    lambda_config_existing =\
+              \ lambda_client.get_function_configuration(FunctionName=function_name)\n\
+              \    \n    # Remove the added env variable.\n    env = lambda_config_existing.get(\"\
+              Environment\", {})\n    variables = env.get(\"Variables\", {})\n   \
+              \ \n    if \"CHAOS_EXTENSION__LAMBDA__ENABLE_LATENCY\" in variables:\n\
+              \        del variables[\"CHAOS_EXTENSION__LAMBDA__ENABLE_LATENCY\"]\n\
+              \    if \"AWS_LAMBDA_EXEC_WRAPPER\" in variables:\n        del variables[\"\
+              AWS_LAMBDA_EXEC_WRAPPER\"]\n        \n    env[\"Variables\"] = variables\n\
+              \    \n    # Remove the added layer.\n    existing_layers = lambda_config_existing.get(\"\
+              Layers\", [])\n    layers = [l['Arn'] for l in existing_layers if l['Arn']\
+              \ != layer_arn]\n    \n    lambda_client.update_function_configuration(\n\
+              \        FunctionName=function_name,\n        Layers=layers,\n     \
+              \   Environment=env\n    )"
+  ExperimentTemplate:
+    Type: AWS::FIS::ExperimentTemplate
+    DeletionPolicy: Delete
+    Properties:
+      Description: Inject chaos in Lambda with pre-configured chaos injection layers
+      Actions:
+        InjectChaos:
+          ActionId: aws:ssm:start-automation-execution
+          Parameters:
+            documentArn:
+              Fn::Sub: arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:document/${ChaosDocument}
+            maxDuration: PT10M
+      StopConditions:
+      - Source: none
+      RoleArn:
+        Fn::GetAtt:
+        - FISRole
+        - Arn
+      Tags:
+        Name: fisChaosInjection
+      Targets: {}
+  FISRole:
+    Type: AWS::IAM::Role
+    DeletionPolicy: Delete
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: fis.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: PassRole
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: iam:PassRole
+            Resource: arn:aws:iam::*:role/*
+            Condition:
+              StringEquals:
+                iam:PassedToService: ssm.amazonaws.com
+      - PolicyName: StartAutomation
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action: ssm:StartAutomationExecution
+            Resource: arn:aws:ssm:*:*:automation-definition/*:*
+      - PolicyName: StopAutomation
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - ssm:GetAutomationExecution
+            - ssm:StopAutomationExecution
+            Resource: arn:aws:ssm:*:*:automation-execution/*
+Outputs:
+  StopExperiment:
+    Description: Command to start automation execution for rollback
+    Value:
+      Fn::Sub: 'aws ssm start-automation-execution --document-name "${RollbackChaosDocument}"
+        --document-version "\$DEFAULT" --region ${AWS::Region}
+
+        '
